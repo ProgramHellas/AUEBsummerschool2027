@@ -243,6 +243,9 @@
     outline: 2px solid var(--gold); outline-offset: 2px;
   }
   .application-form .btn { justify-self: start; margin-top: 4px; }
+  .application-form .form-status { min-height: 1.5em; color: var(--ink-dim); font-size: 0.9rem; }
+  .application-form .form-status[data-state="success"] { color: var(--gold-soft); }
+  .application-form .form-status[data-state="error"] { color: #ffb4a9; }
   @media (max-width: 560px) { .application-dialog { padding: 24px; } }
 
   /* scroll indicator */
@@ -861,18 +864,20 @@
   <div class="dialog-head">
     <div>
       <h2 id="applicationTitle">Apply for the Summer School</h2>
-      <p class="dialog-note">Your email app will open with your details ready to send.</p>
+      <p class="dialog-note">Submit your details and we’ll get back to you by email.</p>
     </div>
     <button type="button" class="dialog-close" data-close-application aria-label="Close application form">&times;</button>
   </div>
-  <form class="application-form" id="applicationForm">
+  <form class="application-form" id="applicationForm" action="https://formsubmit.co/ajax/dianajzhong@gmail.com" method="POST">
+    <input type="hidden" name="_subject" value="Heritage Management Summer School 2027 application">
     <label for="applicantName">Name</label>
     <input id="applicantName" name="name" autocomplete="name" required>
     <label for="applicantEmail">Email</label>
     <input id="applicantEmail" name="email" type="email" autocomplete="email" required>
     <label for="applicationMessage">Message</label>
     <textarea id="applicationMessage" name="message" required></textarea>
-    <button type="submit" class="btn btn-primary">Continue to email &rarr;</button>
+    <button type="submit" class="btn btn-primary">Submit</button>
+    <p class="form-status" role="status" aria-live="polite"></p>
   </form>
 </dialog>
 
@@ -985,22 +990,45 @@
   /* ========== Application form ========== */
   const applicationDialog = document.getElementById('applicationDialog');
   const applicationForm = document.getElementById('applicationForm');
+  const applicationStatus = applicationForm.querySelector('[role="status"]');
   document.querySelectorAll('[data-open-application]').forEach(button => {
-    button.addEventListener('click', () => applicationDialog.showModal());
+    button.addEventListener('click', () => {
+      applicationStatus.textContent = '';
+      applicationStatus.removeAttribute('data-state');
+      applicationDialog.showModal();
+    });
   });
   document.querySelector('[data-close-application]').addEventListener('click', () => applicationDialog.close());
   applicationDialog.addEventListener('click', (event) => {
     if (event.target === applicationDialog) applicationDialog.close();
   });
-  applicationForm.addEventListener('submit', (event) => {
+  applicationForm.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const formData = new FormData(applicationForm);
-    const subject = encodeURIComponent('Heritage Management Summer School 2027 application');
-    const body = encodeURIComponent(
-      `Name: ${formData.get('name')}\nEmail: ${formData.get('email')}\n\n${formData.get('message')}`
-    );
-    window.location.href = `mailto:dianajzhong@gmail.com?subject=${subject}&body=${body}`;
-    applicationDialog.close();
+    const submitButton = applicationForm.querySelector('[type="submit"]');
+    submitButton.disabled = true;
+    submitButton.textContent = 'Submitting...';
+    applicationStatus.textContent = '';
+    applicationStatus.removeAttribute('data-state');
+    try {
+      const response = await fetch(applicationForm.action, {
+        method: 'POST',
+        headers: { 'Accept': 'application/json' },
+        body: new URLSearchParams(new FormData(applicationForm))
+      });
+      const result = await response.json();
+      if (!response.ok || String(result.success).toLowerCase() !== 'true') {
+        throw new Error(result.message || 'Submission failed');
+      }
+      applicationForm.reset();
+      applicationStatus.dataset.state = 'success';
+      applicationStatus.textContent = 'Your application message was submitted successfully.';
+    } catch (error) {
+      applicationStatus.dataset.state = 'error';
+      applicationStatus.textContent = 'We could not submit your message. Please try again.';
+    } finally {
+      submitButton.disabled = false;
+      submitButton.textContent = 'Submit';
+    }
   });
 
   /* ========== Smooth anchor offset ========== */
